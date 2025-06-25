@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Shield, Smartphone, QrCode, CheckCircle, AlertTriangle } from 'lucide-react';
 import { setUpTOTP, verifyTOTPSetup, confirmSignIn } from 'aws-amplify/auth';
 import { withLogging } from '../../utils/apiLogger';
+import QRCode from 'qrcode';
 
 interface OTPTabProps {
   activeConfigName: string | null;
@@ -12,6 +13,7 @@ export const OTPTab: React.FC<OTPTabProps> = ({ activeConfigName }) => {
   const [setupData, setSetupData] = useState<{
     secretCode?: string;
     qrCodeUri?: string;
+    qrCodeDataUrl?: string;
   }>({});
   const [formData, setFormData] = useState({
     totpCode: '',
@@ -19,6 +21,29 @@ export const OTPTab: React.FC<OTPTabProps> = ({ activeConfigName }) => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Generate QR code when URI is available
+  useEffect(() => {
+    const generateQRCode = async () => {
+      if (setupData.qrCodeUri) {
+        try {
+          const qrCodeDataUrl = await QRCode.toDataURL(setupData.qrCodeUri, {
+            width: 256,
+            margin: 2,
+            color: {
+              dark: '#1f2937',
+              light: '#ffffff'
+            }
+          });
+          setSetupData(prev => ({ ...prev, qrCodeDataUrl }));
+        } catch (error) {
+          console.error('Failed to generate QR code:', error);
+        }
+      }
+    };
+
+    generateQRCode();
+  }, [setupData.qrCodeUri]);
 
   const handleSetupTOTP = async () => {
     if (!activeConfigName) {
@@ -159,17 +184,28 @@ export const OTPTab: React.FC<OTPTabProps> = ({ activeConfigName }) => {
             <QrCode className="w-4 h-4" />
             <span>QR Code</span>
           </h3>
-          {setupData.qrCodeUri ? (
+          {setupData.qrCodeDataUrl ? (
             <div className="text-center">
               <div className="inline-block p-4 bg-white rounded-lg border">
                 <p className="text-xs text-slate-500 mb-2">Scan this QR code with your authenticator app</p>
-                <div className="w-32 h-32 bg-slate-200 rounded flex items-center justify-center">
-                  <span className="text-xs text-slate-500">QR Code Placeholder</span>
-                </div>
+                <img 
+                  src={setupData.qrCodeDataUrl} 
+                  alt="TOTP QR Code" 
+                  className="mx-auto rounded"
+                  width={200}
+                  height={200}
+                />
               </div>
             </div>
           ) : (
-            <p className="text-slate-500">QR code not available</p>
+            <div className="text-center">
+              <div className="inline-block p-4 bg-white rounded-lg border">
+                <p className="text-xs text-slate-500 mb-2">Generating QR code...</p>
+                <div className="w-48 h-48 bg-slate-200 rounded flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                </div>
+              </div>
+            </div>
           )}
         </div>
 
@@ -178,9 +214,14 @@ export const OTPTab: React.FC<OTPTabProps> = ({ activeConfigName }) => {
           <p className="text-sm text-slate-600 mb-2">
             If you can't scan the QR code, enter this secret manually:
           </p>
-          <code className="text-xs bg-slate-200 px-2 py-1 rounded font-mono break-all">
-            {setupData.secretCode || 'Secret not available'}
-          </code>
+          <div className="bg-slate-200 p-3 rounded border">
+            <code className="text-xs font-mono break-all select-all">
+              {setupData.secretCode || 'Secret not available'}
+            </code>
+          </div>
+          <p className="text-xs text-slate-500 mt-2">
+            Click the secret above to select and copy it
+          </p>
         </div>
 
         <div>

@@ -18,8 +18,7 @@ import {
   Sparkles,
   Code,
   Terminal,
-  Cpu,
-  ExternalLink
+  Cpu
 } from 'lucide-react';
 import { ParticleField } from './animations/ParticleField';
 import { GlowingCard } from './animations/GlowingCard';
@@ -168,44 +167,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterTool }) => {
               whileHover={{ scale: 1.05 }}
             >
               <Sparkles className="w-4 h-4" />
-              <span>Powered by </span>
-              <motion.a
-                href="https://docs.amplify.aws/lib/auth/getting-started/q/platform/js/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center space-x-1 text-blue-300 hover:text-blue-200 transition-colors"
-                whileHover={{ scale: 1.05 }}
-              >
-                <span>AWS Amplify v6.15.1</span>
-                <ExternalLink className="w-3 h-3" />
-              </motion.a>
-              <span>&</span>
-              <motion.a
-                href="https://threejs.org/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center space-x-1 text-blue-300 hover:text-blue-200 transition-colors"
-                whileHover={{ scale: 1.05 }}
-              >
-                <span>Three.js</span>
-                <ExternalLink className="w-3 h-3" />
-              </motion.a>
+              <span>Powered by AWS Amplify v6.15.1</span>
             </motion.div>
             
             <h1 className="text-7xl font-bold mb-6 leading-tight">
               <span className="bg-gradient-to-r from-white via-blue-200 to-purple-200 bg-clip-text text-transparent">
-                Debug 
+                Debug AWS Cognito
               </span>
-              <motion.a
-                href="https://aws.amazon.com/cognito/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center space-x-2 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent hover:from-blue-300 hover:to-purple-300 transition-all duration-300"
-                whileHover={{ scale: 1.05 }}
-              >
-                <span>AWS Cognito</span>
-                <ExternalLink className="w-12 h-12 text-blue-400" />
-              </motion.a>
               <br />
               <TypewriterText 
                 texts={typewriterTexts}
