@@ -4,7 +4,10 @@ export interface CognitoConfig {
   userPoolId: string;
   userPoolWebClientId: string;
   identityPoolId?: string;
-  authenticationFlowType: 'USER_SRP_AUTH' | 'USER_PASSWORD_AUTH' | 'ALLOW_USER_PASSWORD_AUTH';
+  authenticationFlowType:
+    | "USER_SRP_AUTH"
+    | "USER_PASSWORD_AUTH"
+    | "ALLOW_USER_PASSWORD_AUTH";
 }
 
 export interface ApiLog {
@@ -13,7 +16,7 @@ export interface ApiLog {
   action: string;
   request: any;
   response: any;
-  status: 'success' | 'error';
+  status: "success" | "error";
   error?: string;
 }
 
@@ -25,6 +28,10 @@ export interface UserState {
   mfaEnabled?: boolean;
   mfaType?: string;
   tokens?: AuthTokens;
+  mfaPreference?: {
+    enabled?: ("SMS" | "TOTP" | "EMAIL")[];
+    preferred?: "SMS" | "TOTP" | "EMAIL";
+  };
 }
 
 export interface AuthTokens {
@@ -33,4 +40,10 @@ export interface AuthTokens {
   refreshToken?: string;
 }
 
-export type TabType = 'config' | 'login' | 'register' | 'forgot' | 'otp' | 'debug';
+export type TabType =
+  | "config"
+  | "login"
+  | "register"
+  | "forgot"
+  | "otp"
+  | "debug";

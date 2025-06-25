@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
-import { User, AlertTriangle, CheckCircle, LogOut, Eye } from 'lucide-react';
-import { signOut } from 'aws-amplify/auth';
-import { UserState, CognitoConfig } from '../types';
-import { withLogging } from '../utils/apiLogger';
-import { Modal } from './Modal';
-import { TokenViewer } from './TokenViewer';
+import React, { useState } from "react";
+import { User, AlertTriangle, CheckCircle, LogOut, Eye } from "lucide-react";
+import { signOut } from "aws-amplify/auth";
+import { UserState, CognitoConfig } from "../types";
+import { withLogging } from "../utils/apiLogger";
+import { Modal } from "./Modal";
+import { TokenViewer } from "./TokenViewer";
 
 interface HeaderProps {
   userState: UserState;
@@ -12,19 +12,19 @@ interface HeaderProps {
   onUserStateChange: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ userState, activeConfig, onUserStateChange }) => {
+export const Header: React.FC<HeaderProps> = ({
+  userState,
+  activeConfig,
+  onUserStateChange,
+}) => {
   const [showTokenModal, setShowTokenModal] = useState(false);
 
   const handleSignOut = async () => {
     try {
-      await withLogging(
-        'signOut',
-        {},
-        () => signOut()
-      );
+      await withLogging("signOut", {}, () => signOut());
       onUserStateChange();
     } catch (error) {
-      console.error('Sign out failed:', error);
+      console.error("Sign out failed:", error);
     }
   };
 
@@ -39,7 +39,9 @@ export const Header: React.FC<HeaderProps> = ({ userState, activeConfig, onUserS
                 {userState.isSignedIn ? (
                   <span className="flex items-center space-x-2">
                     <CheckCircle className="w-4 h-4 text-green-500" />
-                    <span>Signed in as {userState.username || userState.email}</span>
+                    <span>
+                      Signed in as {userState.email || userState.username}
+                    </span>
                     {userState.tokens && (
                       <button
                         onClick={() => setShowTokenModal(true)}
@@ -65,7 +67,7 @@ export const Header: React.FC<HeaderProps> = ({ userState, activeConfig, onUserS
                 )}
               </span>
             </div>
-            
+
             {activeConfig && (
               <div className="flex items-center space-x-2 px-3 py-1 bg-blue-50 rounded-full">
                 <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
@@ -75,15 +77,17 @@ export const Header: React.FC<HeaderProps> = ({ userState, activeConfig, onUserS
               </div>
             )}
           </div>
-          
+
           <div className="flex items-center space-x-4">
             {!activeConfig && (
               <div className="flex items-center space-x-2 text-amber-600">
                 <AlertTriangle className="w-4 h-4" />
-                <span className="text-sm font-medium">No configuration active</span>
+                <span className="text-sm font-medium">
+                  No configuration active
+                </span>
               </div>
             )}
-            
+
             <div className="text-sm text-slate-500">
               {new Date().toLocaleTimeString()}
             </div>

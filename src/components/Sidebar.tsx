@@ -1,6 +1,16 @@
-import React from 'react';
-import { Settings, LogIn, UserPlus, KeyRound, Shield, Bug, Database, Github, Linkedin } from 'lucide-react';
-import { TabType } from '../types';
+import React from "react";
+import {
+  Settings,
+  LogIn,
+  UserPlus,
+  KeyRound,
+  Shield,
+  Bug,
+  Database,
+  Github,
+  Linkedin,
+} from "lucide-react";
+import { TabType } from "../types";
 
 interface SidebarProps {
   activeTab: TabType;
@@ -8,12 +18,12 @@ interface SidebarProps {
 }
 
 const tabs = [
-  { id: 'config' as TabType, label: 'Configuration', icon: Settings },
-  { id: 'login' as TabType, label: 'Login', icon: LogIn },
-  { id: 'register' as TabType, label: 'Register', icon: UserPlus },
-  { id: 'forgot' as TabType, label: 'Forgot Password', icon: KeyRound },
-  { id: 'otp' as TabType, label: 'OTP / MFA', icon: Shield },
-  { id: 'debug' as TabType, label: 'Debug Console', icon: Bug },
+  { id: "config" as TabType, label: "Configuration", icon: Settings },
+  { id: "login" as TabType, label: "Login", icon: LogIn },
+  { id: "register" as TabType, label: "Register", icon: UserPlus },
+  { id: "forgot" as TabType, label: "Forgot Password", icon: KeyRound },
+  { id: "otp" as TabType, label: "OTP / MFA", icon: Shield },
+  { id: "debug" as TabType, label: "Debug Console", icon: Bug },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
@@ -28,21 +38,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
           </div>
         </div>
       </div>
-      
+
       <nav className="flex-1 p-4">
         <div className="space-y-2">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
-            
+
             return (
               <button
                 key={tab.id}
                 onClick={() => onTabChange(tab.id)}
                 className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-all duration-200 ${
                   isActive
-                    ? 'bg-blue-600 text-white shadow-lg'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    ? "bg-blue-600 text-white shadow-lg"
+                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
                 }`}
               >
                 <Icon className="w-5 h-5" />
@@ -52,17 +62,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
           })}
         </div>
       </nav>
-      
+
       <div className="p-4 border-t border-slate-700 space-y-3">
         <div className="text-xs text-slate-500">
           <p>Amplify v6.15.1</p>
           <p>Data stored locally</p>
         </div>
-        
+
         <div className="border-t border-slate-700 pt-3">
           <div className="flex items-center justify-between">
             <span className="text-xs text-slate-400">
-              Developed by <span className="text-slate-300 font-medium">Muneeb</span>
+              Developed by{" "}
+              <span className="text-slate-300 font-medium">Muneeb Ajaz</span>
             </span>
             <div className="flex items-center space-x-2">
               <a
