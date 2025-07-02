@@ -1,58 +1,133 @@
-import React, { useState } from 'react';
-import { LogIn, Eye, EyeOff, CheckCircle, AlertTriangle, Shield, Mail, Phone, Key, RefreshCw } from 'lucide-react';
-import { signIn, getCurrentUser, signOut, fetchAuthSession, confirmSignIn, resendSignUpCode } from 'aws-amplify/auth';
-import { withLogging } from '../../utils/apiLogger';
-import { AuthTokens } from '../../types';
-import { Modal } from '../Modal';
-import { TokenViewer } from '../TokenViewer';
+import React, { useState, useEffect } from "react";
+import {
+  LogIn,
+  Eye,
+  EyeOff,
+  CheckCircle,
+  AlertTriangle,
+  Shield,
+  Mail,
+  Phone,
+  Key,
+  RefreshCw,
+  QrCode,
+  Smartphone,
+  Settings,
+} from "lucide-react";
+import {
+  signIn,
+  getCurrentUser,
+  signOut,
+  fetchAuthSession,
+  confirmSignIn,
+} from "aws-amplify/auth";
+import { withLogging } from "../../utils/apiLogger";
+import { AuthTokens } from "../../types";
+import { Modal } from "../Modal";
+import { TokenViewer } from "../TokenViewer";
+import QRCode from "qrcode";
 
 interface LoginTabProps {
   onUserStateChange: () => void;
   activeConfigName: string | null;
 }
 
-type NextStepType = 
-  | 'CONFIRM_SIGN_IN_WITH_TOTP_CODE'
-  | 'CONFIRM_SIGN_IN_WITH_SMS_CODE'
-  | 'CONFIRM_SIGN_IN_WITH_EMAIL_CODE'
-  | 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED'
-  | 'CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE'
-  | 'CONFIRM_SIGN_UP'
-  | 'RESET_PASSWORD'
-  | 'DONE';
+type NextStepType =
+  | "CONFIRM_SIGN_IN_WITH_TOTP_CODE"
+  | "CONFIRM_SIGN_IN_WITH_SMS_CODE"
+  | "CONFIRM_SIGN_IN_WITH_EMAIL_CODE"
+  | "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED"
+  | "CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE"
+  | "CONTINUE_SIGN_IN_WITH_TOTP_SETUP"
+  | "CONTINUE_SIGN_IN_WITH_MFA_SELECTION"
+  | "CONFIRM_SIGN_UP"
+  | "RESET_PASSWORD"
+  | "DONE";
 
-export const LoginTab: React.FC<LoginTabProps> = ({ onUserStateChange, activeConfigName }) => {
+export const LoginTab: React.FC<LoginTabProps> = ({
+  onUserStateChange,
+  activeConfigName,
+}) => {
   const [formData, setFormData] = useState({
-    username: '',
-    password: '',
-    rememberDevice: false
+    username: "muneeb@reporteq.com",
+    password: "Admin@123!",
+    rememberDevice: false,
   });
-  
+
   const [challengeData, setChallengeData] = useState({
-    code: '',
-    newPassword: '',
-    confirmPassword: '',
-    customChallengeAnswer: '',
-    challengeName: '' as NextStepType | '',
-    session: '',
-    codeDeliveryDetails: null as any
+    code: "",
+    newPassword: "",
+    confirmPassword: "",
+    customChallengeAnswer: "",
+    challengeName: "" as NextStepType | "",
+    session: "",
+    codeDeliveryDetails: null as any,
+    availableMFATypes: [] as string[],
   });
-  
+
+  // Add state for TOTP setup details
+  const [totpSetupData, setTotpSetupData] = useState<{
+    sharedSecret?: string;
+    qrCodeUri?: string;
+    qrCodeDataUrl?: string;
+  }>({});
+
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showChallengeStep, setShowChallengeStep] = useState(false);
-  const [result, setResult] = useState<{ type: 'success' | 'error'; message: string; tokens?: AuthTokens } | null>(null);
+  const [result, setResult] = useState<{
+    type: "success" | "error";
+    message: string;
+    tokens?: AuthTokens;
+  } | null>(null);
   const [showTokenModal, setShowTokenModal] = useState(false);
+
+  // Generate QR code when URI is available for TOTP setup
+  useEffect(() => {
+    const generateQRCode = async () => {
+      if (totpSetupData.qrCodeUri) {
+        try {
+          const qrCodeDataUrl = await QRCode.toDataURL(
+            totpSetupData.qrCodeUri,
+            {
+              width: 256,
+              margin: 2,
+              color: {
+                dark: "#1f2937",
+                light: "#ffffff",
+              },
+            }
+          );
+          setTotpSetupData((prev) => ({ ...prev, qrCodeDataUrl }));
+        } catch (error) {
+          console.error("Failed to generate QR code:", error);
+          setResult({
+            type: "error",
+            message:
+              "Failed to generate QR code. Please use the manual entry method below.",
+          });
+        }
+      }
+    };
+
+    generateQRCode();
+  }, [totpSetupData.qrCodeUri]);
 
   const handleLogin = async () => {
     if (!activeConfigName) {
-      setResult({ type: 'error', message: 'Please configure and activate a Cognito profile first' });
+      setResult({
+        type: "error",
+        message: "Please configure and activate a Cognito profile first",
+      });
       return;
     }
 
     if (!formData.username || !formData.password) {
-      setResult({ type: 'error', message: 'Please enter both username and password' });
+      setResult({
+        type: "error",
+        message: "Please enter both username and password",
+      });
       return;
     }
 
@@ -63,19 +138,16 @@ export const LoginTab: React.FC<LoginTabProps> = ({ onUserStateChange, activeCon
     try {
       // First, try to sign out any existing user to clear the session
       try {
-        await withLogging(
-          'signOut',
-          {},
-          () => signOut()
-        );
+        await withLogging("signOut", {}, () => signOut());
       } catch (signOutError) {
-        console.log('No existing user to sign out:', signOutError);
+        console.log("No existing user to sign out:", signOutError);
       }
 
       const signInResult = await withLogging(
-        'signIn',
+        "signIn",
         { username: formData.username, password: formData.password },
-        () => signIn({ username: formData.username, password: formData.password })
+        () =>
+          signIn({ username: formData.username, password: formData.password })
       );
 
       if (signInResult.isSignedIn) {
@@ -84,27 +156,30 @@ export const LoginTab: React.FC<LoginTabProps> = ({ onUserStateChange, activeCon
         handleNextStep(signInResult.nextStep);
       }
     } catch (error) {
-      let message = 'Sign-in failed';
-      
+      let message = "Sign-in failed";
+
       if (error instanceof Error) {
-        if (error.message.includes('There is already a signed in user')) {
-          message = 'There is already a signed in user. Please sign out first or refresh the page.';
-        } else if (error.message.includes('User is not confirmed')) {
-          message = 'User account is not confirmed. Please check your email for the confirmation code.';
-        } else if (error.message.includes('Incorrect username or password')) {
-          message = 'Incorrect username or password. Please try again.';
-        } else if (error.message.includes('User does not exist')) {
-          message = 'User does not exist. Please check your username or register a new account.';
-        } else if (error.message.includes('Password attempts exceeded')) {
-          message = 'Too many failed login attempts. Please try again later.';
-        } else if (error.message.includes('User is disabled')) {
-          message = 'User account has been disabled. Please contact support.';
+        if (error.message.includes("There is already a signed in user")) {
+          message =
+            "There is already a signed in user. Please sign out first or refresh the page.";
+        } else if (error.message.includes("User is not confirmed")) {
+          message =
+            "User account is not confirmed. Please check your email for the confirmation code.";
+        } else if (error.message.includes("Incorrect username or password")) {
+          message = "Incorrect username or password. Please try again.";
+        } else if (error.message.includes("User does not exist")) {
+          message =
+            "User does not exist. Please check your username or register a new account.";
+        } else if (error.message.includes("Password attempts exceeded")) {
+          message = "Too many failed login attempts. Please try again later.";
+        } else if (error.message.includes("User is disabled")) {
+          message = "User account has been disabled. Please contact support.";
         } else {
           message = error.message;
         }
       }
-      
-      setResult({ type: 'error', message });
+
+      setResult({ type: "error", message });
     } finally {
       setIsLoading(false);
     }
@@ -112,106 +187,187 @@ export const LoginTab: React.FC<LoginTabProps> = ({ onUserStateChange, activeCon
 
   const handleNextStep = (nextStep: any) => {
     if (!nextStep) {
-      setResult({ type: 'error', message: 'Unknown authentication step required' });
+      setResult({
+        type: "error",
+        message: "Unknown authentication step required",
+      });
       return;
     }
 
     const stepType = nextStep.signInStep as NextStepType;
-    
-    setChallengeData(prev => ({
+
+    setChallengeData((prev) => ({
       ...prev,
       challengeName: stepType,
-      codeDeliveryDetails: nextStep.codeDeliveryDetails || null
+      codeDeliveryDetails: nextStep.codeDeliveryDetails || null,
     }));
 
     setShowChallengeStep(true);
 
     switch (stepType) {
-      case 'CONFIRM_SIGN_IN_WITH_TOTP_CODE':
+      case "CONFIRM_SIGN_IN_WITH_TOTP_CODE":
         setResult({
-          type: 'success',
-          message: 'Please enter the TOTP code from your authenticator app to complete sign-in.'
+          type: "success",
+          message:
+            "Please enter the TOTP code from your authenticator app to complete sign-in.",
         });
         break;
-      
-      case 'CONFIRM_SIGN_IN_WITH_SMS_CODE':
-        const smsDestination = nextStep.codeDeliveryDetails?.destination || 'your phone';
+
+      case "CONFIRM_SIGN_IN_WITH_SMS_CODE": {
+        const smsDestination =
+          nextStep.codeDeliveryDetails?.destination || "your phone";
         setResult({
-          type: 'success',
-          message: `A verification code has been sent via SMS to ${smsDestination}. Please enter the code to continue.`
+          type: "success",
+          message: `A verification code has been sent via SMS to ${smsDestination}. Please enter the code to continue.`,
         });
         break;
-      
-      case 'CONFIRM_SIGN_IN_WITH_EMAIL_CODE':
-        const emailDestination = nextStep.codeDeliveryDetails?.destination || 'your email';
+      }
+
+      case "CONFIRM_SIGN_IN_WITH_EMAIL_CODE": {
+        const emailDestination =
+          nextStep.codeDeliveryDetails?.destination || "your email";
         setResult({
-          type: 'success',
-          message: `A verification code has been sent to ${emailDestination}. Please check your email and enter the code.`
+          type: "success",
+          message: `A verification code has been sent to ${emailDestination}. Please check your email and enter the code.`,
         });
         break;
-      
-      case 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED':
+      }
+
+      case "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED":
         setResult({
-          type: 'success',
-          message: 'You must set a new password before continuing. Please enter a new password below.'
+          type: "success",
+          message:
+            "You must set a new password before continuing. Please enter a new password below.",
         });
         break;
-      
-      case 'CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE':
+
+      case "CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE":
         setResult({
-          type: 'success',
-          message: 'Custom authentication challenge required. Please provide the required information.'
+          type: "success",
+          message:
+            "Custom authentication challenge required. Please provide the required information.",
         });
         break;
-      
-      case 'CONFIRM_SIGN_UP':
+
+      case "CONTINUE_SIGN_IN_WITH_TOTP_SETUP": {
+        // Handle TOTP setup during sign-in
+        if (nextStep.totpSetupDetails?.sharedSecret) {
+          const username = formData.username;
+          const issuer = activeConfigName || "Cognito";
+          const qrCodeUri = `otpauth://totp/${encodeURIComponent(
+            issuer
+          )}:${encodeURIComponent(username)}?secret=${
+            nextStep.totpSetupDetails.sharedSecret
+          }&issuer=${encodeURIComponent(issuer)}`;
+
+          setTotpSetupData({
+            sharedSecret: nextStep.totpSetupDetails.sharedSecret,
+            qrCodeUri: qrCodeUri,
+          });
+
+          setResult({
+            type: "success",
+            message:
+              "TOTP setup is required. Please scan the QR code with your authenticator app and enter the verification code to continue sign-in.",
+          });
+        } else {
+          setResult({
+            type: "error",
+            message: "TOTP setup failed: Missing setup details",
+          });
+        }
+        break;
+      }
+
+      case "CONTINUE_SIGN_IN_WITH_MFA_SELECTION": {
+        const allowedMFATypes = nextStep.allowedMFATypes || [];
+        setChallengeData((prev) => ({
+          ...prev,
+          availableMFATypes: allowedMFATypes,
+        }));
         setResult({
-          type: 'error',
-          message: 'Your account is not confirmed. Please check your email for the confirmation code and confirm your account first.'
+          type: "success",
+          message: `Multiple MFA methods available. Please select your preferred method to continue authentication.`,
         });
         break;
-      
-      case 'RESET_PASSWORD':
+      }
+
+      case "CONFIRM_SIGN_UP":
         setResult({
-          type: 'error',
-          message: 'Password reset is required. Please use the "Forgot Password" tab to reset your password.'
+          type: "error",
+          message:
+            "Your account is not confirmed. Please check your email for the confirmation code and confirm your account first.",
         });
         break;
-      
+
+      case "RESET_PASSWORD":
+        setResult({
+          type: "error",
+          message:
+            'Password reset is required. Please use the "Forgot Password" tab to reset your password.',
+        });
+        break;
+
       default:
         setResult({
-          type: 'error',
-          message: `Unsupported authentication step: ${stepType}`
+          type: "error",
+          message: `Unsupported authentication step: ${stepType}`,
         });
         break;
     }
   };
 
   const handleChallengeConfirmation = async () => {
-    const { challengeName, code, newPassword, confirmPassword, customChallengeAnswer } = challengeData;
+    const {
+      challengeName,
+      code,
+      newPassword,
+      confirmPassword,
+      customChallengeAnswer,
+    } = challengeData;
 
     // Validation based on challenge type
-    if (challengeName === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED') {
+    if (challengeName === "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED") {
       if (!newPassword || !confirmPassword) {
-        setResult({ type: 'error', message: 'Please enter and confirm your new password' });
+        setResult({
+          type: "error",
+          message: "Please enter and confirm your new password",
+        });
         return;
       }
       if (newPassword !== confirmPassword) {
-        setResult({ type: 'error', message: 'Passwords do not match' });
+        setResult({ type: "error", message: "Passwords do not match" });
         return;
       }
       if (newPassword.length < 8) {
-        setResult({ type: 'error', message: 'Password must be at least 8 characters long' });
+        setResult({
+          type: "error",
+          message: "Password must be at least 8 characters long",
+        });
         return;
       }
-    } else if (challengeName === 'CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE') {
+    } else if (challengeName === "CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE") {
       if (!customChallengeAnswer) {
-        setResult({ type: 'error', message: 'Please provide an answer to the custom challenge' });
+        setResult({
+          type: "error",
+          message: "Please provide an answer to the custom challenge",
+        });
+        return;
+      }
+    } else if (challengeName === "CONTINUE_SIGN_IN_WITH_TOTP_SETUP") {
+      if (!code) {
+        setResult({
+          type: "error",
+          message: "Please enter the TOTP code from your authenticator app",
+        });
         return;
       }
     } else {
       if (!code) {
-        setResult({ type: 'error', message: 'Please enter the verification code' });
+        setResult({
+          type: "error",
+          message: "Please enter the verification code",
+        });
         return;
       }
     }
@@ -220,27 +376,32 @@ export const LoginTab: React.FC<LoginTabProps> = ({ onUserStateChange, activeCon
     setResult(null);
 
     try {
-      let challengeResponse = '';
-      
+      let challengeResponse = "";
+
       switch (challengeName) {
-        case 'CONFIRM_SIGN_IN_WITH_TOTP_CODE':
-        case 'CONFIRM_SIGN_IN_WITH_SMS_CODE':
-        case 'CONFIRM_SIGN_IN_WITH_EMAIL_CODE':
+        case "CONFIRM_SIGN_IN_WITH_TOTP_CODE":
+        case "CONFIRM_SIGN_IN_WITH_SMS_CODE":
+        case "CONFIRM_SIGN_IN_WITH_EMAIL_CODE":
           challengeResponse = code;
           break;
-        case 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED':
+        case "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED":
           challengeResponse = newPassword;
           break;
-        case 'CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE':
+        case "CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE":
           challengeResponse = customChallengeAnswer;
+          break;
+        case "CONTINUE_SIGN_IN_WITH_TOTP_SETUP":
+          // For TOTP setup during sign-in, we just pass the code directly
+          // The verification happens as part of the confirmSignIn process
+          challengeResponse = code;
           break;
         default:
           throw new Error(`Unsupported challenge type: ${challengeName}`);
       }
 
       const confirmResult = await withLogging(
-        'confirmSignIn',
-        { challengeResponse: challengeResponse.substring(0, 10) + '...' }, // Log partial response for security
+        "confirmSignIn",
+        { challengeResponse: challengeResponse.substring(0, 10) + "..." }, // Log partial response for security
         () => confirmSignIn({ challengeResponse })
       );
 
@@ -252,47 +413,85 @@ export const LoginTab: React.FC<LoginTabProps> = ({ onUserStateChange, activeCon
         handleNextStep(confirmResult.nextStep);
       }
     } catch (error) {
-      let message = 'Challenge confirmation failed';
-      
+      let message = "Challenge confirmation failed";
+
       if (error instanceof Error) {
-        if (error.message.includes('Invalid verification code')) {
-          message = 'Invalid verification code. Please check the code and try again.';
-        } else if (error.message.includes('Code mismatch')) {
-          message = 'The verification code is incorrect. Please try again.';
-        } else if (error.message.includes('Expired')) {
-          message = 'The verification code has expired. Please request a new code.';
-        } else if (error.message.includes('Invalid password')) {
-          message = 'Password does not meet the requirements. Please try a stronger password.';
+        if (error.message.includes("Invalid verification code")) {
+          message =
+            "Invalid verification code. Please check the code and try again.";
+        } else if (error.message.includes("Code mismatch")) {
+          message = "The verification code is incorrect. Please try again.";
+        } else if (error.message.includes("Expired")) {
+          message =
+            "The verification code has expired. Please request a new code.";
+        } else if (error.message.includes("Invalid password")) {
+          message =
+            "Password does not meet the requirements. Please try a stronger password.";
         } else {
           message = error.message;
         }
       }
-      
-      setResult({ type: 'error', message });
+
+      setResult({ type: "error", message });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleMFASelection = async (selectedMFAType: string) => {
+    setIsLoading(true);
+    setResult(null);
+
+    try {
+      const confirmResult = await withLogging(
+        "confirmSignIn",
+        { challengeResponse: selectedMFAType },
+        () => confirmSignIn({ challengeResponse: selectedMFAType })
+      );
+
+      if (confirmResult.isSignedIn) {
+        await handleSuccessfulSignIn();
+      } else {
+        handleNextStep(confirmResult.nextStep);
+      }
+    } catch (error) {
+      console.error("MFA selection failed:", error);
+      const message =
+        error instanceof Error ? error.message : "MFA selection failed";
+      setResult({ type: "error", message });
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleResendCode = async () => {
-    if (!challengeData.challengeName || 
-        !['CONFIRM_SIGN_IN_WITH_SMS_CODE', 'CONFIRM_SIGN_IN_WITH_EMAIL_CODE'].includes(challengeData.challengeName)) {
-      setResult({ type: 'error', message: 'Code resend is not available for this challenge type' });
+    if (
+      !challengeData.challengeName ||
+      ![
+        "CONFIRM_SIGN_IN_WITH_SMS_CODE",
+        "CONFIRM_SIGN_IN_WITH_EMAIL_CODE",
+      ].includes(challengeData.challengeName)
+    ) {
+      setResult({
+        type: "error",
+        message: "Code resend is not available for this challenge type",
+      });
       return;
     }
 
     setIsLoading(true);
-    
+
     try {
       // Note: AWS Cognito doesn't have a direct resend for sign-in challenges
       // This would typically require re-initiating the sign-in process
       setResult({
-        type: 'success',
-        message: 'To receive a new code, please cancel and sign in again.'
+        type: "success",
+        message: "To receive a new code, please cancel and sign in again.",
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to resend code';
-      setResult({ type: 'error', message });
+      const message =
+        error instanceof Error ? error.message : "Failed to resend code";
+      setResult({ type: "error", message });
     } finally {
       setIsLoading(false);
     }
@@ -301,74 +500,83 @@ export const LoginTab: React.FC<LoginTabProps> = ({ onUserStateChange, activeCon
   const handleSuccessfulSignIn = async () => {
     try {
       const currentUser = await getCurrentUser();
-      
+
       let tokens: AuthTokens = {};
       try {
         const session = await fetchAuthSession();
         tokens = {
           idToken: session.tokens?.idToken?.toString(),
           accessToken: session.tokens?.accessToken?.toString(),
-          refreshToken: session.tokens?.refreshToken?.toString()
         };
       } catch (tokenError) {
-        console.error('Failed to fetch tokens:', tokenError);
+        console.error("Failed to fetch tokens:", tokenError);
         tokens = {
-          idToken: 'Failed to retrieve token',
-          accessToken: 'Failed to retrieve token',
-          refreshToken: 'Failed to retrieve token'
+          idToken: "Failed to retrieve token",
+          accessToken: "Failed to retrieve token",
         };
       }
 
       setResult({
-        type: 'success',
+        type: "success",
         message: `Successfully signed in as ${currentUser.username}`,
-        tokens
+        tokens,
       });
       onUserStateChange();
     } catch (error) {
       setResult({
-        type: 'error',
-        message: 'Sign-in completed but failed to fetch user details'
+        type: "error",
+        message: "Sign-in completed but failed to fetch user details",
       });
     }
   };
 
-  const handleInputChange = (field: keyof typeof formData, value: string | boolean) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const handleInputChange = (
+    field: keyof typeof formData,
+    value: string | boolean
+  ) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
     if (result) setResult(null);
   };
 
-  const handleChallengeInputChange = (field: keyof typeof challengeData, value: string) => {
-    setChallengeData(prev => ({ ...prev, [field]: value }));
+  const handleChallengeInputChange = (
+    field: keyof typeof challengeData,
+    value: string
+  ) => {
+    setChallengeData((prev) => ({ ...prev, [field]: value }));
     if (result) setResult(null);
   };
 
   const resetChallenge = () => {
     setShowChallengeStep(false);
     setChallengeData({
-      code: '',
-      newPassword: '',
-      confirmPassword: '',
-      customChallengeAnswer: '',
-      challengeName: '',
-      session: '',
-      codeDeliveryDetails: null
+      code: "",
+      newPassword: "",
+      confirmPassword: "",
+      customChallengeAnswer: "",
+      challengeName: "",
+      session: "",
+      codeDeliveryDetails: null,
+      availableMFATypes: [],
     });
     setResult(null);
   };
 
   const getChallengeIcon = () => {
     switch (challengeData.challengeName) {
-      case 'CONFIRM_SIGN_IN_WITH_TOTP_CODE':
+      case "CONFIRM_SIGN_IN_WITH_TOTP_CODE":
         return Shield;
-      case 'CONFIRM_SIGN_IN_WITH_SMS_CODE':
+      case "CONFIRM_SIGN_IN_WITH_SMS_CODE":
         return Phone;
-      case 'CONFIRM_SIGN_IN_WITH_EMAIL_CODE':
+      case "CONFIRM_SIGN_IN_WITH_EMAIL_CODE":
         return Mail;
-      case 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED':
+      case "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED":
         return Key;
-      case 'CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE':
+      case "CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE":
         return AlertTriangle;
+      case "CONTINUE_SIGN_IN_WITH_TOTP_SETUP":
+        return QrCode;
+      case "CONTINUE_SIGN_IN_WITH_MFA_SELECTION":
+        return Settings;
       default:
         return Shield;
     }
@@ -376,18 +584,22 @@ export const LoginTab: React.FC<LoginTabProps> = ({ onUserStateChange, activeCon
 
   const getChallengeTitle = () => {
     switch (challengeData.challengeName) {
-      case 'CONFIRM_SIGN_IN_WITH_TOTP_CODE':
-        return 'TOTP Authentication Required';
-      case 'CONFIRM_SIGN_IN_WITH_SMS_CODE':
-        return 'SMS Verification Required';
-      case 'CONFIRM_SIGN_IN_WITH_EMAIL_CODE':
-        return 'Email Verification Required';
-      case 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED':
-        return 'New Password Required';
-      case 'CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE':
-        return 'Custom Challenge Required';
+      case "CONFIRM_SIGN_IN_WITH_TOTP_CODE":
+        return "TOTP Authentication Required";
+      case "CONFIRM_SIGN_IN_WITH_SMS_CODE":
+        return "SMS Verification Required";
+      case "CONFIRM_SIGN_IN_WITH_EMAIL_CODE":
+        return "Email Verification Required";
+      case "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED":
+        return "New Password Required";
+      case "CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE":
+        return "Custom Challenge Required";
+      case "CONTINUE_SIGN_IN_WITH_TOTP_SETUP":
+        return "TOTP Setup Required";
+      case "CONTINUE_SIGN_IN_WITH_MFA_SELECTION":
+        return "Select MFA Method";
       default:
-        return 'Additional Verification Required';
+        return "Additional Verification Required";
     }
   };
 
@@ -397,11 +609,13 @@ export const LoginTab: React.FC<LoginTabProps> = ({ onUserStateChange, activeCon
     <div className="space-y-6">
       <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
         <h2 className="text-xl font-semibold text-slate-900 mb-4">Sign In</h2>
-        
+
         {!activeConfigName && (
           <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center space-x-2">
             <AlertTriangle className="w-4 h-4 text-amber-600" />
-            <span className="text-amber-700">Please configure and activate a Cognito profile first</span>
+            <span className="text-amber-700">
+              Please configure and activate a Cognito profile first
+            </span>
           </div>
         )}
 
@@ -413,22 +627,22 @@ export const LoginTab: React.FC<LoginTabProps> = ({ onUserStateChange, activeCon
             <input
               type="text"
               value={formData.username}
-              onChange={(e) => handleInputChange('username', e.target.value)}
+              onChange={(e) => handleInputChange("username", e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="Enter username or email"
               disabled={!activeConfigName || showChallengeStep}
             />
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
               Password
             </label>
             <div className="relative">
               <input
-                type={showPassword ? 'text' : 'password'}
+                type={showPassword ? "text" : "password"}
                 value={formData.password}
-                onChange={(e) => handleInputChange('password', e.target.value)}
+                onChange={(e) => handleInputChange("password", e.target.value)}
                 className="w-full px-3 py-2 pr-10 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Enter password"
                 disabled={!activeConfigName || showChallengeStep}
@@ -439,21 +653,30 @@ export const LoginTab: React.FC<LoginTabProps> = ({ onUserStateChange, activeCon
                 className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
                 disabled={!activeConfigName || showChallengeStep}
               >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {showPassword ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
               </button>
             </div>
           </div>
-          
+
           <div className="flex items-center">
             <input
               type="checkbox"
               id="rememberDevice"
               checked={formData.rememberDevice}
-              onChange={(e) => handleInputChange('rememberDevice', e.target.checked)}
+              onChange={(e) =>
+                handleInputChange("rememberDevice", e.target.checked)
+              }
               className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
               disabled={!activeConfigName || showChallengeStep}
             />
-            <label htmlFor="rememberDevice" className="ml-2 text-sm text-slate-700">
+            <label
+              htmlFor="rememberDevice"
+              className="ml-2 text-sm text-slate-700"
+            >
               Remember this device
             </label>
           </div>
@@ -467,7 +690,7 @@ export const LoginTab: React.FC<LoginTabProps> = ({ onUserStateChange, activeCon
               className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors"
             >
               <LogIn className="w-4 h-4" />
-              <span>{isLoading ? 'Signing in...' : 'Sign In'}</span>
+              <span>{isLoading ? "Signing in..." : "Sign In"}</span>
             </button>
           </div>
         )}
@@ -476,12 +699,15 @@ export const LoginTab: React.FC<LoginTabProps> = ({ onUserStateChange, activeCon
           <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <div className="flex items-center space-x-2 mb-4">
               <ChallengeIcon className="w-5 h-5 text-blue-600" />
-              <h3 className="font-medium text-blue-900">{getChallengeTitle()}</h3>
+              <h3 className="font-medium text-blue-900">
+                {getChallengeTitle()}
+              </h3>
             </div>
-            
+
             <div className="space-y-4">
               {/* TOTP Code Input */}
-              {challengeData.challengeName === 'CONFIRM_SIGN_IN_WITH_TOTP_CODE' && (
+              {challengeData.challengeName ===
+                "CONFIRM_SIGN_IN_WITH_TOTP_CODE" && (
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Enter TOTP Code from Authenticator App
@@ -489,7 +715,9 @@ export const LoginTab: React.FC<LoginTabProps> = ({ onUserStateChange, activeCon
                   <input
                     type="text"
                     value={challengeData.code}
-                    onChange={(e) => handleChallengeInputChange('code', e.target.value)}
+                    onChange={(e) =>
+                      handleChallengeInputChange("code", e.target.value)
+                    }
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="000000"
                     maxLength={6}
@@ -498,8 +726,10 @@ export const LoginTab: React.FC<LoginTabProps> = ({ onUserStateChange, activeCon
               )}
 
               {/* SMS/Email Code Input */}
-              {(challengeData.challengeName === 'CONFIRM_SIGN_IN_WITH_SMS_CODE' || 
-                challengeData.challengeName === 'CONFIRM_SIGN_IN_WITH_EMAIL_CODE') && (
+              {(challengeData.challengeName ===
+                "CONFIRM_SIGN_IN_WITH_SMS_CODE" ||
+                challengeData.challengeName ===
+                  "CONFIRM_SIGN_IN_WITH_EMAIL_CODE") && (
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Enter Verification Code
@@ -507,21 +737,25 @@ export const LoginTab: React.FC<LoginTabProps> = ({ onUserStateChange, activeCon
                   <input
                     type="text"
                     value={challengeData.code}
-                    onChange={(e) => handleChallengeInputChange('code', e.target.value)}
+                    onChange={(e) =>
+                      handleChallengeInputChange("code", e.target.value)
+                    }
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="000000"
                     maxLength={6}
                   />
                   {challengeData.codeDeliveryDetails && (
                     <p className="text-xs text-slate-500 mt-1">
-                      Code sent to: {challengeData.codeDeliveryDetails.destination}
+                      Code sent to:{" "}
+                      {challengeData.codeDeliveryDetails.destination}
                     </p>
                   )}
                 </div>
               )}
 
               {/* New Password Input */}
-              {challengeData.challengeName === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED' && (
+              {challengeData.challengeName ===
+                "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED" && (
                 <>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -529,9 +763,14 @@ export const LoginTab: React.FC<LoginTabProps> = ({ onUserStateChange, activeCon
                     </label>
                     <div className="relative">
                       <input
-                        type={showNewPassword ? 'text' : 'password'}
+                        type={showNewPassword ? "text" : "password"}
                         value={challengeData.newPassword}
-                        onChange={(e) => handleChallengeInputChange('newPassword', e.target.value)}
+                        onChange={(e) =>
+                          handleChallengeInputChange(
+                            "newPassword",
+                            e.target.value
+                          )
+                        }
                         className="w-full px-3 py-2 pr-10 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         placeholder="Enter new password"
                       />
@@ -540,7 +779,11 @@ export const LoginTab: React.FC<LoginTabProps> = ({ onUserStateChange, activeCon
                         onClick={() => setShowNewPassword(!showNewPassword)}
                         className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
                       >
-                        {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {showNewPassword ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
                       </button>
                     </div>
                   </div>
@@ -549,9 +792,14 @@ export const LoginTab: React.FC<LoginTabProps> = ({ onUserStateChange, activeCon
                       Confirm New Password
                     </label>
                     <input
-                      type={showNewPassword ? 'text' : 'password'}
+                      type={showNewPassword ? "text" : "password"}
                       value={challengeData.confirmPassword}
-                      onChange={(e) => handleChallengeInputChange('confirmPassword', e.target.value)}
+                      onChange={(e) =>
+                        handleChallengeInputChange(
+                          "confirmPassword",
+                          e.target.value
+                        )
+                      }
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Confirm new password"
                     />
@@ -560,7 +808,8 @@ export const LoginTab: React.FC<LoginTabProps> = ({ onUserStateChange, activeCon
               )}
 
               {/* Custom Challenge Input */}
-              {challengeData.challengeName === 'CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE' && (
+              {challengeData.challengeName ===
+                "CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE" && (
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Custom Challenge Response
@@ -568,25 +817,166 @@ export const LoginTab: React.FC<LoginTabProps> = ({ onUserStateChange, activeCon
                   <input
                     type="text"
                     value={challengeData.customChallengeAnswer}
-                    onChange={(e) => handleChallengeInputChange('customChallengeAnswer', e.target.value)}
+                    onChange={(e) =>
+                      handleChallengeInputChange(
+                        "customChallengeAnswer",
+                        e.target.value
+                      )
+                    }
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="Enter your response"
                   />
                 </div>
               )}
-              
-              <div className="flex space-x-3">
-                <button
-                  onClick={handleChallengeConfirmation}
-                  disabled={isLoading}
-                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-400 transition-colors"
-                >
-                  <ChallengeIcon className="w-4 h-4" />
-                  <span>{isLoading ? 'Verifying...' : 'Verify'}</span>
-                </button>
 
-                {(challengeData.challengeName === 'CONFIRM_SIGN_IN_WITH_SMS_CODE' || 
-                  challengeData.challengeName === 'CONFIRM_SIGN_IN_WITH_EMAIL_CODE') && (
+              {/* TOTP Setup Input */}
+              {challengeData.challengeName ===
+                "CONTINUE_SIGN_IN_WITH_TOTP_SETUP" && (
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <div className="flex items-center justify-center space-x-2 mb-4">
+                      <Smartphone className="w-5 h-5 text-blue-600" />
+                      <span className="text-sm font-medium text-slate-700">
+                        Set up authenticator app
+                      </span>
+                    </div>
+
+                    {totpSetupData.qrCodeDataUrl && (
+                      <div className="mb-4">
+                        <p className="text-sm text-slate-600 mb-2">
+                          Scan this QR code with your authenticator app:
+                        </p>
+                        <div className="flex justify-center">
+                          <img
+                            src={totpSetupData.qrCodeDataUrl}
+                            alt="TOTP QR Code"
+                            className="border border-slate-200 rounded-lg"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {totpSetupData.sharedSecret && (
+                      <div className="mb-4">
+                        <p className="text-sm text-slate-600 mb-2">
+                          Or enter this code manually:
+                        </p>
+                        <div className="p-2 bg-slate-100 rounded border font-mono text-sm break-all">
+                          {totpSetupData.sharedSecret}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Enter verification code from your authenticator app
+                    </label>
+                    <input
+                      type="text"
+                      value={challengeData.code}
+                      onChange={(e) =>
+                        handleChallengeInputChange("code", e.target.value)
+                      }
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="000000"
+                      maxLength={6}
+                    />
+                    <p className="text-xs text-slate-500 mt-1">
+                      Enter the 6-digit code from your authenticator app to
+                      complete setup
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* MFA Selection */}
+              {challengeData.challengeName ===
+                "CONTINUE_SIGN_IN_WITH_MFA_SELECTION" && (
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-sm text-slate-600 mb-4">
+                      Multiple MFA methods are available. Please select your
+                      preferred method:
+                    </p>
+                    <div className="space-y-3">
+                      {challengeData.availableMFATypes.map((mfaType) => {
+                        const getMFAConfig = (type: string) => {
+                          switch (type) {
+                            case "TOTP":
+                              return {
+                                icon: Smartphone,
+                                title: "Authenticator App (TOTP)",
+                                description:
+                                  "Use your authenticator app to generate a code",
+                              };
+                            case "SMS":
+                              return {
+                                icon: Phone,
+                                title: "SMS Text Message",
+                                description: "Receive a code via SMS",
+                              };
+                            case "EMAIL":
+                              return {
+                                icon: Mail,
+                                title: "Email Verification",
+                                description: "Receive a code via email",
+                              };
+                            default:
+                              return {
+                                icon: Shield,
+                                title: type,
+                                description: `Use ${type} for verification`,
+                              };
+                          }
+                        };
+
+                        const config = getMFAConfig(mfaType);
+                        const Icon = config.icon;
+
+                        return (
+                          <button
+                            key={mfaType}
+                            onClick={() => handleMFASelection(mfaType)}
+                            disabled={isLoading}
+                            className="w-full flex items-center space-x-3 p-4 border border-slate-300 rounded-lg hover:bg-slate-50 hover:border-blue-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <div className="p-2 bg-blue-100 rounded-lg">
+                              <Icon className="w-5 h-5 text-blue-600" />
+                            </div>
+                            <div className="text-left">
+                              <div className="font-medium text-slate-900">
+                                {config.title}
+                              </div>
+                              <div className="text-sm text-slate-600">
+                                {config.description}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex space-x-3">
+                {challengeData.challengeName !==
+                  "CONTINUE_SIGN_IN_WITH_MFA_SELECTION" && (
+                  <button
+                    onClick={handleChallengeConfirmation}
+                    disabled={isLoading}
+                    className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-400 transition-colors"
+                  >
+                    <ChallengeIcon className="w-4 h-4" />
+                    <span>{isLoading ? "Verifying..." : "Verify"}</span>
+                  </button>
+                )}
+
+                {(challengeData.challengeName ===
+                  "CONFIRM_SIGN_IN_WITH_SMS_CODE" ||
+                  challengeData.challengeName ===
+                    "CONFIRM_SIGN_IN_WITH_EMAIL_CODE") && (
                   <button
                     onClick={handleResendCode}
                     disabled={isLoading}
@@ -596,7 +986,7 @@ export const LoginTab: React.FC<LoginTabProps> = ({ onUserStateChange, activeCon
                     <span>Resend Code</span>
                   </button>
                 )}
-                
+
                 <button
                   onClick={resetChallenge}
                   className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
@@ -612,11 +1002,15 @@ export const LoginTab: React.FC<LoginTabProps> = ({ onUserStateChange, activeCon
       {result && (
         <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
           <h3 className="text-lg font-semibold text-slate-900 mb-3">Result</h3>
-          
-          <div className={`p-3 rounded-lg flex items-start space-x-2 ${
-            result.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-          }`}>
-            {result.type === 'success' ? (
+
+          <div
+            className={`p-3 rounded-lg flex items-start space-x-2 ${
+              result.type === "success"
+                ? "bg-green-50 text-green-700"
+                : "bg-red-50 text-red-700"
+            }`}
+          >
+            {result.type === "success" ? (
               <CheckCircle className="w-5 h-5 mt-0.5" />
             ) : (
               <AlertTriangle className="w-5 h-5 mt-0.5" />
@@ -626,7 +1020,7 @@ export const LoginTab: React.FC<LoginTabProps> = ({ onUserStateChange, activeCon
             </div>
           </div>
 
-          {result.tokens && result.type === 'success' && (
+          {result.tokens && result.type === "success" && (
             <div className="mt-4">
               <button
                 onClick={() => setShowTokenModal(true)}
